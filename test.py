@@ -23,10 +23,11 @@ raw_input()
 
 # This will fail if the user didn't visit the above URL and hit 'Allow'
 access_token = sess.obtain_access_token(request_token)
+print 'access_token:', access_token
 
-print "dir(client):", dir(client)
 
 client = client.DropboxClient(sess)
+print "dir(client):", dir(client)
 print "linked account:", client.account_info()
 
 f = open('test.py')
@@ -37,7 +38,10 @@ folder_metadata = client.metadata('/')
 print "metadata:", folder_metadata
 
 f, metadata = client.get_file_and_metadata('/magnum-opus.py',rev='1')
-out = open('magnum-opus.txt', 'w')
-out.write(f)
+print "Returned f:", f
+print dir(f)
+
+out = open('magnum-opus.py', 'w')
+out.write(f.read())
 print(metadata)
 
