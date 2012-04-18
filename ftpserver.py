@@ -131,6 +131,7 @@ import random
 import stat
 import heapq
 import optparse
+import dropbox
 from tarfile import filemode as _filemode
 
 try:
@@ -1443,6 +1444,27 @@ class AbstractedFS(object):
         self._root = root
         self.cmd_channel = cmd_channel
 
+        print "Initializing dropbox"
+        self._init_dropbox()
+        print "Done with initialization"
+        try:
+          print self.db_client.account_info()
+          print "Printed account info sucessfully"
+        except:
+          print "Couldn't make an API call. Try reauthenticating."
+
+    def _init_dropbox(self):
+      # Get your app key and secret from the Dropbox developer website
+      APP_KEY = 'dypmsdyctp1jiv4'
+      APP_SECRET = 'ihiakn2tr86h48e'
+      # ACCESS_TYPE should be 'dropbox' or 'app_folder' as configured for your app
+      ACCESS_TYPE = 'app_folder'
+
+      sess = dropbox.session.DropboxSession(APP_KEY, APP_SECRET, ACCESS_TYPE)
+
+      sess.set_token('o0f2361dd26n75i', 'bty55udbjr2v76v')
+      self.db_client = dropbox.client.DropboxClient(sess)
+
     @property
     def root(self):
         """The user home directory."""
@@ -1452,14 +1474,6 @@ class AbstractedFS(object):
     def cwd(self):
         """The user current working directory."""
         return self._cwd
-
-    @root.setter
-    def root(self, path):
-        self._root = path
-
-    @cwd.setter
-    def cwd(self, path):
-        self._cwd = path
 
     # --- Pathname / conversion utilities
 
@@ -1560,149 +1574,173 @@ class AbstractedFS(object):
 
     # --- Wrapper methods around open() and tempfile.mkstemp
 
-    def open(self, filename, mode):
-        """Open a file returning its handler."""
-        return open(filename, mode)
+#    def open(self, filename, mode):
+#        """Open a file returning its handler."""
+#        return open(filename, mode)
+#
+#    def mkstemp(self, suffix='', prefix='', dir=None, mode='wb'):
+#        """A wrap around tempfile.mkstemp creating a file with a unique
+#        name.  Unlike mkstemp it returns an object with a file-like
+#        interface.
+#        """
+#        class FileWrapper:
+#            def __init__(self, fd, name):
+#                self.file = fd
+#                self.name = name
+#            def __getattr__(self, attr):
+#                return getattr(self.file, attr)
+#
+#        text = not 'b' in mode
+#        # max number of tries to find out a unique file name
+#        tempfile.TMP_MAX = 50
+#        fd, name = tempfile.mkstemp(suffix, prefix, dir, text=text)
+#        file = os.fdopen(fd, mode)
+#        return FileWrapper(file, name)
 
-    def mkstemp(self, suffix='', prefix='', dir=None, mode='wb'):
-        """A wrap around tempfile.mkstemp creating a file with a unique
-        name.  Unlike mkstemp it returns an object with a file-like
-        interface.
-        """
-        class FileWrapper:
-            def __init__(self, fd, name):
-                self.file = fd
-                self.name = name
-            def __getattr__(self, attr):
-                return getattr(self.file, attr)
 
-        text = not 'b' in mode
-        # max number of tries to find out a unique file name
-        tempfile.TMP_MAX = 50
-        fd, name = tempfile.mkstemp(suffix, prefix, dir, text=text)
-        file = os.fdopen(fd, mode)
-        return FileWrapper(file, name)
+    # --- Wrapper for dropbox specific info
+
+    def metadata(self, path):
+        """List the metadata for a file."""
+        return self.db_client.metadata(path)
+
+    def get_file(self, path):
+        """Get a file from Dropbox."""
+        return self.db_client.get_file(path)
+
+    def put_file(self, path):
+        """Put a file from Dropbox."""
+        return self.db_client.put_file(path)
 
     # --- Wrapper methods around os.* calls
 
-    def chdir(self, path):
-        """Change the current directory."""
-        # temporarily join the specified directory to see if we have
-        # permissions to do so
-        basedir = os.getcwd()
-        try:
-            os.chdir(path)
-        except OSError:
-            raise
-        else:
-            os.chdir(basedir)
-            self._cwd = self.fs2ftp(path)
+#    def chdir(self, path):
+#        """Change the current directory."""
+#        # temporarily join the specified directory to see if we have
+#        # permissions to do so
+#        basedir = os.getcwd()
+#        try:
+#            os.chdir(path)
+#        except OSError:
+#            raise
+#        else:
+#            os.chdir(basedir)
+#            self._cwd = self.fs2ftp(path)
 
     def mkdir(self, path):
         """Create the specified directory."""
-        os.mkdir(path)
+        #os.mkdir(path)
+        self.db_client.file_create_folder(path)
 
     def listdir(self, path):
         """List the content of a directory."""
-        return os.listdir(path)
+        #return os.listdir(path)
+        return self.metadata(path)['contents']
 
     def rmdir(self, path):
         """Remove the specified directory."""
-        os.rmdir(path)
+        #os.rmdir(path)
+        self.db_client.file_delete(path)
+
 
     def remove(self, path):
         """Remove the specified file."""
-        os.remove(path)
+        #os.remove(path)
+        self.db_client.file_delete(path)
 
     def rename(self, src, dst):
         """Rename the specified src file to the dst filename."""
-        os.rename(src, dst)
+        #os.rename(src, dst)
+        self.db_client.file_move(path)
 
-    def chmod(self, path, mode):
-        """Change file/directory mode."""
-        if not hasattr(os, 'chmod'):
-            raise NotImplementedError
-        os.chmod(path, mode)
-
-    def stat(self, path):
-        """Perform a stat() system call on the given path."""
-        return os.stat(path)
-
-    def lstat(self, path):
-        """Like stat but does not follow symbolic links."""
-        return os.lstat(path)
-
-    if not hasattr(os, 'lstat'):
-        lstat = stat
+#    def chmod(self, path, mode):
+#        """Change file/directory mode."""
+#        if not hasattr(os, 'chmod'):
+#            raise NotImplementedError
+#        os.chmod(path, mode)
+#
+#    def stat(self, path):
+#        """Perform a stat() system call on the given path."""
+#        return os.stat(path)
+#
+#    def lstat(self, path):
+#        """Like stat but does not follow symbolic links."""
+#        return os.lstat(path)
+#
+#    if not hasattr(os, 'lstat'):
+#        lstat = stat
 
     # --- Wrapper methods around os.path.* calls
 
     def isfile(self, path):
         """Return True if path is a file."""
-        return os.path.isfile(path)
+        return not self.isdir(path)
 
-    def islink(self, path):
-        """Return True if path is a symbolic link."""
-        return os.path.islink(path)
+#    def islink(self, path):
+#        """Return True if path is a symbolic link."""
+#        return os.path.islink(path)
 
     def isdir(self, path):
         """Return True if path is a directory."""
-        return os.path.isdir(path)
+        #return os.path.isdir(path)
+        return self.metadata(path)['is_dir']
 
     def getsize(self, path):
         """Return the size of the specified file in bytes."""
-        return os.path.getsize(path)
+        #return os.path.getsize(path)
+        return self.metadata(path)['bytes']
 
-    def getmtime(self, path):
-        """Return the last modified time as a number of seconds since
-        the epoch."""
-        return os.path.getmtime(path)
+#    def getmtime(self, path):
+#        """Return the last modified time as a number of seconds since
+#        the epoch."""
+#        return os.path.getmtime(path)
 
     def realpath(self, path):
         """Return the canonical version of path eliminating any
         symbolic links encountered in the path (if they are
         supported by the operating system).
         """
-        return os.path.realpath(path)
+        #return os.path.realpath(path)
+        return path
 
-    def lexists(self, path):
-        """Return True if path refers to an existing path, including
-        a broken or circular symbolic link.
-        """
-        return os.path.lexists(path)
-
-    def get_user_by_uid(self, uid):
-        """Return the username associated with user id.
-        If this can't be determined return raw uid instead.
-        On Windows just return "owner".
-        """
-        if pwd is not None:
-            try:
-                return pwd.getpwuid(uid).pw_name
-            except KeyError:
-                return uid
-        else:
-            return "owner"
-
-    def get_group_by_gid(self, gid):
-        """Return the groupname associated with group id.
-        If this can't be determined return raw gid instead.
-        On Windows just return "group".
-        """
-        if grp is not None:
-            try:
-                return grp.getgrgid(gid).gr_name
-            except KeyError:
-                return gid
-        else:
-            return "group"
-
-    if hasattr(os, 'readlink'):
-        def readlink(self, path):
-            """Return a string representing the path to which a
-            symbolic link points.
-            """
-            return os.readlink(path)
+#    def lexists(self, path):
+#        """Return True if path refers to an existing path, including
+#        a broken or circular symbolic link.
+#        """
+#        return os.path.lexists(path)
+#
+#    def get_user_by_uid(self, uid):
+#        """Return the username associated with user id.
+#        If this can't be determined return raw uid instead.
+#        On Windows just return "owner".
+#        """
+#        if pwd is not None:
+#            try:
+#                return pwd.getpwuid(uid).pw_name
+#            except KeyError:
+#                return uid
+#        else:
+#            return "owner"
+#
+#    def get_group_by_gid(self, gid):
+#        """Return the groupname associated with group id.
+#        If this can't be determined return raw gid instead.
+#        On Windows just return "group".
+#        """
+#        if grp is not None:
+#            try:
+#                return grp.getgrgid(gid).gr_name
+#            except KeyError:
+#                return gid
+#        else:
+#            return "group"
+#
+#    if hasattr(os, 'readlink'):
+#        def readlink(self, path):
+#            """Return a string representing the path to which a
+#            symbolic link points.
+#            """
+#            return os.readlink(path)
 
     # --- Listing utilities
 
@@ -2990,7 +3028,7 @@ class FTPHandler(object, asynchat.async_chat):
         if rest_pos:
             mode = 'r+'
         try:
-            fd = self.run_as_current_user(self.fs.open, file, mode + 'b')
+            fd = self.run_as_current_user(self.open, file, mode + 'b')
         except IOError, err:
             why = _strerror(err)
             self.respond('550 %s.' %why)
