@@ -1242,10 +1242,8 @@ class DTPHandler(object, asynchat.async_chat):
             if self._resp:
                 self.cmd_channel.respond(self._resp)
 
-            if self.file_obj is not None and not self.file_obj.closed:
-                self.file_obj.close()
-            if self._idler is not None and not self._idler.cancelled:
-                self._idler.cancel()
+            #if self._idler is not None and not self._idler.cancelled:
+            #    self._idler.cancel()
             if self.file_obj is not None:
                 filename = self.file_obj.name
                 elapsed_time = round(self.get_elapsed_time(), 3)
@@ -1475,6 +1473,14 @@ class AbstractedFS(object):
         """The user current working directory."""
         return self._cwd
 
+    @root.setter
+    def root(self, path):
+      self._root = path
+
+    @cwd.setter
+    def cwd(self, path):
+      self._cwd = path
+
     # --- Pathname / conversion utilities
 
     def ftpnorm(self, ftppath):
@@ -1604,13 +1610,19 @@ class AbstractedFS(object):
         """List the metadata for a file."""
         return self.db_client.metadata(path)
 
-    def get_file(self, path):
+    def get_file(self, path, mode):
         """Get a file from Dropbox."""
-        return self.db_client.get_file(path)
+        print "Trying to get_file('" + path + "')"
+        file_obj = self.db_client.get_file(path)
+        file_obj.name = path
+        file_obj.closed = False
+        file_obj.close = lambda: None
+        return file_obj
 
-    def put_file(self, path):
-        """Put a file from Dropbox."""
-        return self.db_client.put_file(path)
+    def put_file(self, path, mode):
+        """Upload a file to Dropbox."""
+        print "Trying to put_file('" + self.cwd + "', '" + path + "')"
+        return self.db_client.put_file(self.cwd, path)
 
     # --- Wrapper methods around os.* calls
 
@@ -1779,52 +1791,57 @@ class AbstractedFS(object):
         drwxrwxrwx   1 owner   group          0 Aug 31 18:50 e-books
         -rw-rw-rw-   1 owner   group        380 Sep 02  3:40 module.py
         """
-        if self.cmd_channel.use_gmt_times:
-            timefunc = time.gmtime
-        else:
-            timefunc = time.localtime
-        now = time.time()
-        for basename in listing:
-            file = os.path.join(basedir, basename)
-            try:
-                st = self.lstat(file)
-            except OSError:
-                if ignore_err:
-                    continue
-                raise
-            perms = _filemode(st.st_mode)  # permissions
-            nlinks = st.st_nlink  # number of links to inode
-            if not nlinks:  # non-posix system, let's use a bogus value
-                nlinks = 1
-            size = st.st_size  # file size
-            uname = self.get_user_by_uid(st.st_uid)
-            gname = self.get_group_by_gid(st.st_gid)
-            mtime = timefunc(st.st_mtime)
-            # if modificaton time > 6 months shows "month year"
-            # else "month hh:mm";  this matches proftpd format, see:
-            # http://code.google.com/p/pyftpdlib/issues/detail?id=187
-            if (now - st.st_mtime) > 180 * 24 * 60 * 60:
-                fmtstr = "%d  %Y"
-            else:
-                fmtstr = "%d %H:%M"
-            try:
-                mtimestr = "%s %s" % (_months_map[mtime.tm_mon],
-                                      time.strftime(fmtstr, mtime))
-            except ValueError:
-                # It could be raised if last mtime happens to be too
-                # old (prior to year 1900) in which case we return
-                # the current time as last mtime.
-                mtime = timefunc()
-                mtimestr = "%s %s" % (_months_map[mtime.tm_mon],
-                                      time.strftime("%d %H:%M", mtime))
-
-            # if the file is a symlink, resolve it, e.g. "symlink -> realfile"
-            if stat.S_ISLNK(st.st_mode) and hasattr(self, 'readlink'):
-                basename = basename + " -> " + self.readlink(file)
-
-            # formatting is matched with proftpd ls output
-            yield "%s %3s %-8s %-8s %8s %s %s\r\n" % (perms, nlinks, uname, gname,
-                                                      size, mtimestr, basename)
+        for item in listing:
+          basesize = item['bytes']
+          mtimestr = item['modified']
+          basename = item['path']
+          yield "%8s  %s  %s\r\n" % (basesize, mtimestr, basename)
+#        if self.cmd_channel.use_gmt_times:
+#            timefunc = time.gmtime
+#        else:
+#            timefunc = time.localtime
+#        now = time.time()
+#        for basename in listing:
+#            file = os.path.join(basedir, basename)
+#            try:
+#                st = self.lstat(file)
+#            except OSError:
+#                if ignore_err:
+#                    continue
+#                raise
+#            perms = _filemode(st.st_mode)  # permissions
+#            nlinks = st.st_nlink  # number of links to inode
+#            if not nlinks:  # non-posix system, let's use a bogus value
+#                nlinks = 1
+#            size = st.st_size  # file size
+#            uname = self.get_user_by_uid(st.st_uid)
+#            gname = self.get_group_by_gid(st.st_gid)
+#            mtime = timefunc(st.st_mtime)
+#            # if modificaton time > 6 months shows "month year"
+#            # else "month hh:mm";  this matches proftpd format, see:
+#            # http://code.google.com/p/pyftpdlib/issues/detail?id=187
+#            if (now - st.st_mtime) > 180 * 24 * 60 * 60:
+#                fmtstr = "%d  %Y"
+#            else:
+#                fmtstr = "%d %H:%M"
+#            try:
+#                mtimestr = "%s %s" % (_months_map[mtime.tm_mon],
+#                                      time.strftime(fmtstr, mtime))
+#            except ValueError:
+#                # It could be raised if last mtime happens to be too
+#                # old (prior to year 1900) in which case we return
+#                # the current time as last mtime.
+#                mtime = timefunc()
+#                mtimestr = "%s %s" % (_months_map[mtime.tm_mon],
+#                                      time.strftime("%d %H:%M", mtime))
+#
+#            # if the file is a symlink, resolve it, e.g. "symlink -> realfile"
+#            if stat.S_ISLNK(st.st_mode) and hasattr(self, 'readlink'):
+#                basename = basename + " -> " + self.readlink(file)
+#
+#            # formatting is matched with proftpd ls output
+#            yield "%s %3s %-8s %-8s %8s %s %s\r\n" % (perms, nlinks, uname, gname,
+#                                                      size, mtimestr, basename)
 
     def format_mlsx(self, basedir, listing, perms, facts, ignore_err=True):
         """Return an iterator object that yields the entries of a given
@@ -2898,6 +2915,7 @@ class FTPHandler(object, asynchat.async_chat):
         # - If no argument, fall back on cwd as default.
         # - Some older FTP clients erroneously issue /bin/ls-like LIST
         #   formats in which case we fall back on cwd as default.
+        path = self.fs.fs2ftp(path)
         try:
             iterator = self.run_as_current_user(self.fs.get_list_dir, path)
         except OSError, err:
@@ -2981,10 +2999,11 @@ class FTPHandler(object, asynchat.async_chat):
         """Retrieve the specified file (transfer from the server to the
         client)
         """
+        file = self.fs.fs2ftp(file)
         rest_pos = self._restart_position
         self._restart_position = 0
         try:
-            fd = self.run_as_current_user(self.fs.open, file, 'rb')
+            fd = self.run_as_current_user(self.fs.get_file, file, 'rb')
         except IOError, err:
             why = _strerror(err)
             self.respond('550 %s.' % why)
@@ -3028,7 +3047,7 @@ class FTPHandler(object, asynchat.async_chat):
         if rest_pos:
             mode = 'r+'
         try:
-            fd = self.run_as_current_user(self.open, file, mode + 'b')
+            fd = self.run_as_current_user(self.fs.open, file, mode + 'b')
         except IOError, err:
             why = _strerror(err)
             self.respond('550 %s.' %why)
@@ -3309,6 +3328,7 @@ class FTPHandler(object, asynchat.async_chat):
         # recommended way as specified in RFC-3659.
 
         line = self.fs.fs2ftp(path)
+        path = line
         if self._current_type == 'a':
             why = "SIZE not allowed in ASCII mode"
             self.respond("550 %s." %why)
