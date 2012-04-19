@@ -1621,8 +1621,13 @@ class AbstractedFS(object):
 
     def put_file(self, path, mode):
         """Upload a file to Dropbox."""
-        print "Trying to put_file('" + self.cwd + "', '" + path + "')"
-        return self.db_client.put_file(self.cwd, path)
+        class PutFile:
+          def write(self2, data):
+            print "Trying to put_file('" + path + "', '" + data + "')"
+            self.db_client.put_file(path, data)
+        file_obj = PutFile()
+        file_obj.name = path
+        return file_obj
 
     # --- Wrapper methods around os.* calls
 
@@ -3039,6 +3044,7 @@ class FTPHandler(object, asynchat.async_chat):
         # STOR: mode = 'w'
         # APPE: mode = 'a'
         # REST: mode = 'r+' (to permit seeking on file object)
+        file = self.fs.fs2ftp(file)
         if 'a' in mode:
             cmd = 'APPE'
         else:
@@ -3048,7 +3054,7 @@ class FTPHandler(object, asynchat.async_chat):
         if rest_pos:
             mode = 'r+'
         try:
-            fd = self.run_as_current_user(self.fs.open, file, mode + 'b')
+            fd = self.run_as_current_user(self.fs.put_file, file, mode + 'b')
         except IOError, err:
             why = _strerror(err)
             self.respond('550 %s.' %why)
