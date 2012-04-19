@@ -1702,10 +1702,11 @@ class AbstractedFS(object):
         #return os.path.getsize(path)
         return self.metadata(path)['bytes']
 
-#    def getmtime(self, path):
-#        """Return the last modified time as a number of seconds since
-#        the epoch."""
-#        return os.path.getmtime(path)
+    def getmtime(self, path):
+        """Return the last modified time as a number of seconds since
+        the epoch."""
+        return self.metadata(path)['modified']
+        #return os.path.getmtime(path)
 
     def realpath(self, path):
         """Return the canonical version of path eliminating any
@@ -3350,6 +3351,7 @@ class FTPHandler(object, asynchat.async_chat):
         3307 style timestamp (YYYYMMDDHHMMSS) as defined in RFC-3659.
         """
         line = self.fs.fs2ftp(path)
+        path = line
         if not self.fs.isfile(self.fs.realpath(path)):
             self.respond("550 %s is not retrievable" % line)
             return
