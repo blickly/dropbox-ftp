@@ -3360,8 +3360,9 @@ class FTPHandler(object, asynchat.async_chat):
         else:
             timefunc = time.localtime
         try:
-            secs = self.run_as_current_user(self.fs.getmtime, path)
-            lmt = time.strftime("%Y%m%d%H%M%S", timefunc(secs))
+            #secs = self.run_as_current_user(self.fs.getmtime, path)
+            #lmt = time.strftime("%Y%m%d%H%M%S", timefunc(secs))
+            lmt = self.run_as_current_user(self.fs.getmtime, path)
         except (OSError, ValueError), err:
             if isinstance(err, OSError):
                 why = _strerror(err)
