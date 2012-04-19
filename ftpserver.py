@@ -472,7 +472,6 @@ def logerror(msg):
 
 
 # --- authorizers
-
 class DummyAuthorizer(object):
     """Basic "dummy" authorizer class, suitable for subclassing to
     create your own custom authorizers.
@@ -656,6 +655,20 @@ class DummyAuthorizer(object):
         p2 = b.rstrip(os.sep).split(os.sep)
         return p1[:len(p2)] == p2
 
+
+# Dropbox authorizer also keeps track of tokens
+class DropboxAuthorizer(DummyAuthorizer):
+  def __init__(self):
+    DummyAuthorizer.__init__(self)
+    DummyAuthorizer.__init__(self)
+    self.tokens = {}
+
+  def add_user_w_token(self, username, password, token, perm='lrw'):
+    self.tokens[username] = token
+    DummyAuthorizer.add_user(self, username, password, '.', perm)
+
+  def get_token(self, username):
+    return self.tokens.get(username, None)
 
 
 # --- DTP classes
@@ -1428,7 +1441,7 @@ class AbstractedFS(object):
     files or removing directories.
     """
 
-    def __init__(self, root, cmd_channel):
+    def __init__(self, root, cmd_channel, token):
         """
          - (str) root: the user "real" home directory (e.g. '/home/user')
          - (instance) cmd_channel: the FTPHandler class instance
@@ -1443,7 +1456,7 @@ class AbstractedFS(object):
         self.cmd_channel = cmd_channel
 
         print "Initializing dropbox"
-        self._init_dropbox()
+        self._init_dropbox(token)
         print "Done with initialization"
         try:
           print self.db_client.account_info()
@@ -1451,7 +1464,7 @@ class AbstractedFS(object):
         except:
           print "Couldn't make an API call. Try reauthenticating."
 
-    def _init_dropbox(self):
+    def _init_dropbox(self, token):
       # Get your app key and secret from the Dropbox developer website
       APP_KEY = 'dypmsdyctp1jiv4'
       APP_SECRET = 'ihiakn2tr86h48e'
@@ -1460,7 +1473,7 @@ class AbstractedFS(object):
 
       sess = dropbox.session.DropboxSession(APP_KEY, APP_SECRET, ACCESS_TYPE)
 
-      sess.set_token('o0f2361dd26n75i', 'bty55udbjr2v76v')
+      sess.set_token(token['key'], token['secret'])
       self.db_client = dropbox.client.DropboxClient(sess)
 
     @property
@@ -2041,7 +2054,7 @@ class FTPHandler(object, asynchat.async_chat):
     # these are overridable defaults
 
     # default classes
-    authorizer = DummyAuthorizer()
+    authorizer = DropboxAuthorizer()
     active_dtp = ActiveDTP
     passive_dtp = PassiveDTP
     dtp_handler = DTPHandler
@@ -2935,6 +2948,7 @@ class FTPHandler(object, asynchat.async_chat):
         """Return a list of files in the specified directory in a
         compact form to the client.
         """
+        path = self.fs.fs2ftp(path)
         try:
             if self.fs.isdir(path):
                 listing = self.run_as_current_user(self.fs.listdir, path)
@@ -3264,7 +3278,8 @@ class FTPHandler(object, asynchat.async_chat):
             self.attempted_logins = 0
 
             home = self.authorizer.get_home_dir(self.username)
-            self.fs = self.abstracted_fs(home, self)
+            self.fs = self.abstracted_fs(home, self,
+                self.authorizer.get_token(self.username))
             self.on_login(self.username)
         else:
             self.sleeping = True
@@ -3383,6 +3398,7 @@ class FTPHandler(object, asynchat.async_chat):
     def ftp_MKD(self, path):
         """Create the specified directory."""
         line = self.fs.fs2ftp(path)
+        path = line
         try:
             self.run_as_current_user(self.fs.mkdir, path)
         except OSError, err:
@@ -3400,6 +3416,7 @@ class FTPHandler(object, asynchat.async_chat):
             msg = "Can't remove root directory."
             self.respond("550 %s" % msg)
             return
+        path = self.fs.fs2ftp(path)
         try:
             self.run_as_current_user(self.fs.rmdir, path)
         except OSError, err:
@@ -3410,6 +3427,7 @@ class FTPHandler(object, asynchat.async_chat):
 
     def ftp_DELE(self, path):
         """Delete the specified file."""
+        path = self.fs.fs2ftp(path)
         try:
             self.run_as_current_user(self.fs.remove, path)
         except OSError, err:
@@ -3425,6 +3443,7 @@ class FTPHandler(object, asynchat.async_chat):
             self.respond("550 No such file or directory.")
         elif self.fs.realpath(path) == self.fs.realpath(self.fs.root):
             self.respond("550 Can't rename the home directory.")
+        path = self.fs.fs2ftp(path)
         else:
             self._rnfr = path
             self.respond("350 Ready for destination name.")
@@ -3433,6 +3452,7 @@ class FTPHandler(object, asynchat.async_chat):
         """Rename file (destination name only, source is specified with
         RNFR).
         """
+        path = self.fs.fs2ftp(path)
         if not self._rnfr:
             self.respond("503 Bad sequence of commands: use RNFR first.")
             return
@@ -3542,6 +3562,7 @@ class FTPHandler(object, asynchat.async_chat):
         # return directory LISTing over the command channel
         else:
             line = self.fs.fs2ftp(path)
+            path = line
             try:
                 iterator = self.run_as_current_user(self.fs.get_list_dir, path)
             except OSError, err:
