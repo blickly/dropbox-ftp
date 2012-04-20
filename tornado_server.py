@@ -19,6 +19,9 @@ define('cookie_secret', default="3f8c0458deffeb471fc4142c1c0ad232")
 define('dropbox_consumer_key')
 define('dropbox_consumer_secret')
 
+ftp_authorizer = None
+
+
 class BaseHandler(RequestHandler):
     def get_current_user(self):
         if self.get_secure_cookie("user"):
@@ -33,25 +36,19 @@ class BaseHandler(RequestHandler):
 
 class RootHandler(BaseHandler, DropboxMixin):
     @authenticated
-    #@asynchronous
     def get(self):
-        self.write("Username: %s<br>Password: %s<br>Token: %s"
-            % ("user", "12345", str(self.get_access_token())))
-        #self.dropbox_request('api', '/1/metadata/sandbox/', self.on_metadata,
-        #                     self.get_access_token(),
-        #                     list="true")
+        token = self.get_access_token()
+        print "In Root.get, ftp_authorizer:", str(self.settings['ftp_authorizer'])
+        self.settings['ftp_authorizer'].add_user_w_token(token['uid'], token['key'], token)
+        self.write("Username: %s<br>Password: %s"
+            % (token['uid'], token['key']))
 
-    #def on_metadata(self, response):
-    #    response.rethrow()
-    #    metadata = json.load(response.buffer)
-    #    self.render("index.html", metadata=metadata)
-
-def tornado_main():
+def tornado_main(authorizer):
+    print "In tornado_main( " + str(authorizer) + " )"
     parse_command_line()
     parse_config_file(options.flagfile)
 
     settings = dict(
-        login_url='/login',
         debug=options.debug,
         template_path=os.path.join(os.path.dirname(__file__), 'templates'),
         static_path=os.path.join(os.path.dirname(__file__), 'static'),
@@ -59,6 +56,7 @@ def tornado_main():
         cookie_secret=options.cookie_secret,
         dropbox_consumer_key=options.dropbox_consumer_key,
         dropbox_consumer_secret=options.dropbox_consumer_secret,
+        ftp_authorizer=authorizer,
         )
     app = Application([
             ('/', RootHandler),
@@ -66,5 +64,3 @@ def tornado_main():
     app.listen(options.port)
     IOLoop.instance().start()
 
-if __name__ == '__main__':
-    tornado_main()

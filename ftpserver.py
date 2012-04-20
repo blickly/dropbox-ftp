@@ -131,7 +131,6 @@ import random
 import stat
 import heapq
 import optparse
-import dropbox
 from tarfile import filemode as _filemode
 
 try:
@@ -146,6 +145,7 @@ try:
 except ImportError:
     sendfile = None
 
+import dropbox
 
 __all__ = ['proto_cmds', 'Error', 'log', 'logline', 'logerror', 'DummyAuthorizer',
            'AuthorizerError', 'FTPHandler', 'FTPServer', 'PassiveDTP',
@@ -3443,8 +3443,8 @@ class FTPHandler(object, asynchat.async_chat):
             self.respond("550 No such file or directory.")
         elif self.fs.realpath(path) == self.fs.realpath(self.fs.root):
             self.respond("550 Can't rename the home directory.")
-        path = self.fs.fs2ftp(path)
         else:
+            path = self.fs.fs2ftp(path)
             self._rnfr = path
             self.respond("350 Ready for destination name.")
 
