@@ -11,7 +11,7 @@ from tornado.web import RequestHandler, Application, asynchronous, authenticated
 from async_dropbox import DropboxMixin
 
 define('port', default=8888)
-define('flagfile', default='config.flags')
+define('flagfile', default='config_flags.py')
 define('debug', default=False)
 define('cookie_secret', default="3f8c0458deffeb471fc4142c1c0ad232")
 

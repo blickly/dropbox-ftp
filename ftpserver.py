@@ -146,6 +146,7 @@ except ImportError:
     sendfile = None
 
 import dropbox
+import config_flags
 
 __all__ = ['proto_cmds', 'Error', 'log', 'logline', 'logerror', 'DummyAuthorizer',
            'AuthorizerError', 'FTPHandler', 'FTPServer', 'PassiveDTP',
@@ -1466,8 +1467,8 @@ class AbstractedFS(object):
 
     def _init_dropbox(self, token):
       # Get your app key and secret from the Dropbox developer website
-      APP_KEY = 'dypmsdyctp1jiv4'
-      APP_SECRET = 'ihiakn2tr86h48e'
+      APP_KEY = config_flags.dropbox_consumer_key
+      APP_SECRET = config_flags.dropbox_consumer_secret
       # ACCESS_TYPE should be 'dropbox' or 'app_folder' as configured for your app
       ACCESS_TYPE = 'app_folder'
 
