@@ -1,0 +1,7 @@
+*~
+*.swp
+*.pyc
+*.egg*
+*.zip
+*.tar.gz
+config_flags.py

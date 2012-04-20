@@ -1,0 +1,14 @@
+Hack project that runs a simple FTP server supporting GET, PUT, and LS that backs up
+the files to dropbox.
+
+Large parts shamelessly stolen from pyftplib and bdarnell's async_dropbox API.
+
+To use, first:
+0) Install the Dropbox API SDK and tornado
+1) Copy config_flags.py.example to config_flags.py and fill in your API keys
+2) Run:
+  python run_servers.py
+3) Connect to your server at port 8888, to get your ftp username and password
+4) FTP to your server at port 2121, using the id from step 3
+5) Enjoy!
+
