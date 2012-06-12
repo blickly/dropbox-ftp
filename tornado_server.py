@@ -34,6 +34,7 @@ class BaseHandler(RequestHandler):
         # signatures.
         return dict((utf8(k), utf8(v)) for (k, v) in self.current_user["access_token"].iteritems())
 
+
 class RootHandler(BaseHandler, DropboxMixin):
     @authenticated
     def get(self):
@@ -43,12 +44,28 @@ class RootHandler(BaseHandler, DropboxMixin):
         self.write("Username: %s<br>Password: %s"
             % (token['uid'], token['key']))
 
+
+class LoginHandler(BaseHandler, DropboxMixin):
+    @asynchronous
+    def get(self):
+        if self.get_argument("oauth_token", None):
+            self.get_authenticated_user(self._on_auth)
+            return
+        self.authorize_redirect(callback_uri=self.request.full_url())
+
+    def _on_auth(self, user):
+        if not user:
+            raise HTTPError(500, "Dropbox auth failed")
+        self.set_secure_cookie("user", json.dumps(user))
+        self.redirect('/')
+
 def tornado_main(authorizer):
     print "In tornado_main( " + str(authorizer) + " )"
     parse_command_line()
     parse_config_file(options.flagfile)
 
     settings = dict(
+        login_url='/login',
         debug=options.debug,
         template_path=os.path.join(os.path.dirname(__file__), 'templates'),
         static_path=os.path.join(os.path.dirname(__file__), 'static'),
@@ -60,6 +77,7 @@ def tornado_main(authorizer):
         )
     app = Application([
             ('/', RootHandler),
+            ('/login', LoginHandler),
             ], **settings)
     app.listen(options.port)
     IOLoop.instance().start()

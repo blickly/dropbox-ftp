@@ -7,9 +7,6 @@ def main():
     # Instantiate a dummy authorizer for managing 'virtual' users
     authorizer = ftpserver.DropboxAuthorizer()
 
-    # Define a new user having full r/w permissions
-    authorizer.add_user_w_token('user', password="12345", token={'secret': 'hvkvihrz861sj2z', 'uid': '622501', 'key': 'yst132wsz5kbfbi'} , perm='elradfmw')
-
     # Instantiate FTP handler class
     handler = ftpserver.FTPHandler
     handler.authorizer = authorizer
