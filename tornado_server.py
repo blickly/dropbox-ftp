@@ -40,7 +40,10 @@ class RootHandler(BaseHandler, DropboxMixin):
     def get(self):
         token = self.get_access_token()
         print "In Root.get, ftp_authorizer:", str(self.settings['ftp_authorizer'])
-        self.settings['ftp_authorizer'].add_user_w_token(token['uid'], token['key'], token)
+        authorizer = self.settings['ftp_authorizer']
+        if authorizer.has_user(token['uid']):
+          authorizer.remove_user(token['uid'])
+        authorizer.add_user_w_token(token['uid'], token['key'], token)
         self.write("Username: %s<br>Password: %s"
             % (token['uid'], token['key']))
 
